@@ -1,0 +1,28 @@
+{
+    "name": "iso-tp-twai",
+    "keywords": "can, twai, iso-tp esp32, esp32-s3, esp32-s2, driver, arduino",
+    "description": "ESP32 driver for TWAI / CAN for Adruino using ESP-IDF drivers.",
+    "version": "0.0.2",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/"
+    },
+    "frameworks": "*",
+    "platforms": "*",
+    "build": {
+        "srcFilter": [
+            "+<CanIsoTp.cpp>"
+        ]
+    },
+    "include": [
+        "src"
+    ],
+    "authors":
+    [
+      {
+         "name": "Benedict",
+        "email": "Benedict.@gmail.com",
+         "maintainer": true
+      }
+    ]
+}

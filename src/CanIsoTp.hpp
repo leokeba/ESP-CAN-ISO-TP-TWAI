@@ -1,46 +1,33 @@
-#pragma once
+#ifndef CAN_ISO_TP_HPP
+#define CAN_ISO_TP_HPP
 
-#include <CAN.h> // https://github.com/adafruit/arduino-CAN
+#include <ESP32-TWAI-CAN.hpp> // TWAI CAN Library for ESP32
+#include <cstdint>            // Fixed-width integer types
+#ifdef ARDUINO
+#include <Arduino.h>
+#else
+#include "inttypes.h"
+#endif
+#include "driver/twai.h"
 
-/* ************************************************************************** */
-/* DEFINES																	  */
-/* ************************************************************************** */
-// Timeouts in ms.
-#define TIMEOUT_SESSION                         1000
-#define TIMEOUT_FC                              1000
-#define TIMEOUT_CF                              1000
-#define WFTmax                                  10      // Maximum limit number of CANTP_FC_WAIT.
+// PCI Types
+#define N_PCItypeSF 0x00  // Single Frame
+#define N_PCItypeFF 0x10  // First Frame
+#define N_PCItypeCF 0x20  // Consecutive Frame
+#define N_PCItypeFC 0x30  // Flow Control Frame
 
-// Network protocol control information type.
-#define N_PCItypeSF                             0x00        //Single Frame 
-#define N_PCItypeFF                             0x10        //First Frame
-#define N_PCItypeCF                             0x20        //Consecutive Frame
-#define N_PCItypeFC                             0x30        //Flow Control Frame
+// Flow Control States
+#define CANTP_FLOWSTATUS_CTS 0x00 // Continue to send
+#define CANTP_FLOWSTATUS_WT  0x01 // Wait
+#define CANTP_FLOWSTATUS_OVFL 0x02 // Overflow
 
-#define PACKET_SIZE                             8          // Can Frames size
+// General Timeouts
+#define PACKET_SIZE       8
+#define TIMEOUT_SESSION   1000 // Timeout for receiving complete message (ms)
+#define TIMEOUT_FC        500  // Timeout for Flow Control (ms)
 
-/* flow status codes */
-// Flow Control autorization.
-#define CANTP_FLOWSTATUS_CTS                     (0x00u) // FC continue to send.
-#define CANTP_FLOWSTATUS_WT                      (0x01u) // FC the request to continue to wait.
-#define CANTP_FLOWSTATUS_OVFL                    (0x02u) // FC buffer overflow.
-
-
-// // blockSize
-//     0
-//     No further Flow Control Frame will be sent by the receiver. The value that indicates this can be changed.
-//     1—127
-//     The transmitter should send this many Consecutive Frames before waiting for a Flow Control Frame.
-
-#define CANTP_STMIN_MILLISEC_MAX                 (0x7Fu) // 127 ms
-#define CANTP_STMIN_MICROSEC_MIN                 (0xF1u) // 241 ms
-#define CANTP_STMIN_MICROSEC_MAX                 (0xF9u) // 249 ms
-
-/* ************************************************************************** */
-/* STRUCT ENUMS															  	  */
-/* ************************************************************************** */
-
-typedef enum {
+// ISO-TP State Definitions
+enum IsoTpState {
     CANTP_IDLE,
     CANTP_SEND,
     CANTP_WAIT_FIRST_FC,
@@ -48,61 +35,55 @@ typedef enum {
     CANTP_SEND_CF,
     CANTP_WAIT_DATA,
     CANTP_END,
-    CANTP_ERROR,
-} cantpStates_t;
+    CANTP_ERROR
+};
 
-typedef struct  pdu_s
-{
-    uint32_t            txId              = 0;
-    uint32_t            rxId              = 0;
-    cantpStates_t       cantpState        = CANTP_SEND;
-    uint8_t             fcStatus          = CANTP_FLOWSTATUS_CTS;
-    uint8_t             seqId             = 0;
-    uint8_t             blockSize         = 0;
-    uint8_t             bs                = false;
-    uint8_t             separationTimeMin = 0;
-    uint16_t            len               = 0;
-    uint8_t             *data;
+// ISO-TP PDU Structure
+typedef struct {
+    uint32_t txId;        /**< Transmit CAN ID */
+    uint32_t rxId;        /**< Receive CAN ID */
+    uint8_t *data;        /**< Pointer to data buffer */
+    uint16_t len;         /**< Data length */
+    uint8_t seqId;        /**< Sequence ID for Consecutive Frames */
+    uint8_t fcStatus;     /**< Flow Control status */
+    uint8_t blockSize;    /**< Block size for Flow Control */
+    uint8_t separationTimeMin; /**< Separation time between consecutive frames */
+    IsoTpState cantpState; /**< ISO-TP State */
 } pdu_t;
 
-/* ************************************************************************** */
-/* Class CanIsoTp														  	  */
-/* ************************************************************************** */
+
 
 class CanIsoTp
 {
 public:
+    // TWAI Instance
+    TwaiCAN ESP32CanTwai;
     CanIsoTp();
     ~CanIsoTp();
+    bool begin(long baudRate, int8_t txPin, int8_t rxPin); // Initialize CAN bus
 
-    int  begin(long baudRate);
-    void end();
-    int send(pdu_t *);
-    int receive(pdu_t *);
+    void end();               // Terminate CAN bus
+
+    int send(pdu_t *pdu);     // Send ISO-TP message
+    int receive(pdu_t *pdu);  // Receive ISO-TP message
 
 private:
-    // Testing
-    unsigned long timerStart = 0;
-    uint8_t _packetData[PACKET_SIZE];
-    uint8_t _packetLen = 0;
-
+    uint32_t _timerSession;
+    uint32_t _timerFCWait;
+    uint32_t _timerCFWait;
     uint8_t _rxPacketData[PACKET_SIZE];
-    uint8_t _rxPacketLen     = 0;
-    uint8_t _receivedFCWaits = 0;     // Counter for FlowControl receiver "CANTP_FC_WAIT" frames.
-    uint16_t _rxRestBytes    = 0;     // Counter to check total bytes to RX
-    unsigned long _timerFCWait  = 0;
-    unsigned long _timerCFWait  = 0;
-    unsigned long _timerSession = 0;
+    uint8_t _rxRestBytes;
+    uint8_t _receivedFCWaits;
 
-    uint8_t _bsCounter = 0;
+    int send_SingleFrame(pdu_t *pdu);
+    int send_FirstFrame(pdu_t *pdu);
+    int send_ConsecutiveFrame(pdu_t *pdu);
+    int send_FlowControlFrame(pdu_t *pdu);
 
-    int send_SingleFrame(pdu_t *);
-    int receive_SingleFrame(pdu_t *);
-    int send_FirstFrame(pdu_t *);
-    int receive_FirstFrame(pdu_t *);
-    int send_ConsecutiveFrame(pdu_t *);
-    int receive_ConsecutiveFrame(pdu_t *);
-    int send_FlowControlFrame(pdu_t *);
-    int receive_FlowControlFrame(pdu_t *);
-    void checker_FlowControlDelay();
+    int receive_SingleFrame(pdu_t *pdu, CanFrame *frame);
+    int receive_FirstFrame(pdu_t *pdu, CanFrame *frame);
+    int receive_ConsecutiveFrame(pdu_t *pdu, CanFrame *frame);
+    int receive_FlowControlFrame(pdu_t *pdu, CanFrame *frame);
 };
+
+#endif // CAN_ISO_TP_HPP
