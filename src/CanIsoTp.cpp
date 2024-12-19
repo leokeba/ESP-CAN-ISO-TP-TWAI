@@ -9,8 +9,9 @@
 #define CANTP_FLOWSTATUS_OVFL 0x02 // Overflow
 
 #define PACKET_SIZE 8
-#define TIMEOUT_SESSION 1000
-#define TIMEOUT_FC 500
+#define TIMEOUT_SESSION 100
+#define TIMEOUT_FC 50
+#define TIMEOUT_READ 100
 
 // Already declared in ESP32-TWAI-CAN.hpp
 /* 
@@ -34,6 +35,7 @@ CanIsoTp::CanIsoTp() {
 // destructor 
 CanIsoTp::~CanIsoTp() {
 }
+
 bool CanIsoTp::begin(long baudRate, int8_t txPin, int8_t rxPin){
     ESP32CanTwai.setSpeed(ESP32Can.convertSpeed(baudRate));
     ESP32CanTwai.setPins(txPin, rxPin);
@@ -176,7 +178,7 @@ int CanIsoTp::send(pdu_t *pdu)
             CanFrame frame;
 
             // Try reading a frame from TWAI
-            if (ESP32CanTwai.readFrame(&frame))
+            if (ESP32CanTwai.readFrame(&frame, TIMEOUT_READ))
             {
                 log_i("Frame received: %d", frame.identifier);
                 if (frame.identifier == pdu->rxId && frame.data_length_code > 0)
@@ -230,7 +232,7 @@ int CanIsoTp::receive(pdu_t *rxpdu)
         }
 
         CanFrame frame;
-        if (ESP32CanTwai.readFrame(&frame))
+        if (ESP32CanTwai.readFrame(&frame, TIMEOUT_READ))
         {
             log_i("Frame id received: %d, receive id: %d", frame.identifier, rxpdu->rxId);
             if (frame.identifier == rxpdu->rxId)
@@ -273,6 +275,7 @@ int CanIsoTp::receive(pdu_t *rxpdu)
 
 int CanIsoTp::send_SingleFrame(pdu_t *pdu)
 {
+    log_i("Sending SF");
     CanFrame frame = {0};
     frame.identifier = pdu->txId;
     frame.extd = 0;
@@ -287,6 +290,7 @@ int CanIsoTp::send_SingleFrame(pdu_t *pdu)
 
 int CanIsoTp::send_FirstFrame(pdu_t *pdu)
 {
+    log_i("Sending FF");
     CanFrame frame = {0};
     frame.identifier = pdu->txId;
     frame.extd = 0;
@@ -305,6 +309,7 @@ int CanIsoTp::send_FirstFrame(pdu_t *pdu)
 
 int CanIsoTp::send_ConsecutiveFrame(pdu_t *pdu)
 {
+    log_i("Sending CF");
     CanFrame frame = {0};
     frame.identifier = pdu->txId;
     frame.extd = 0;
@@ -323,6 +328,7 @@ int CanIsoTp::send_ConsecutiveFrame(pdu_t *pdu)
 
 int CanIsoTp::send_FlowControlFrame(pdu_t *pdu)
 {
+    log_i("Sending FC");
     CanFrame frame = {0};
     frame.identifier = pdu->txId;
     frame.extd = 0;
@@ -347,15 +353,18 @@ int CanIsoTp::receive_SingleFrame(pdu_t *pdu, CanFrame *frame)
 
 int CanIsoTp::receive_FirstFrame(pdu_t *pdu, CanFrame *frame)
 {
+    log_i("First Frame received");
     pdu->len = ((frame->data[0] & 0x0F) << 8) | frame->data[1]; // Extract total data length
     memcpy(pdu->data, &frame->data[2], 6);                     // Copy first 6 bytes
     pdu->seqId = 1;                                            // Start sequence ID
     pdu->cantpState = IsoTpState::CANTP_WAIT_FC;                 // Awaiting consecutive frames
+    log_i("Sending FC");
     return send_FlowControlFrame(pdu);
 }
 
 int CanIsoTp::receive_ConsecutiveFrame(pdu_t *pdu, CanFrame *frame)
 {
+    log_i("Consecutive Frame received");
     uint8_t seqId = frame->data[0] & 0x0F;
     if (seqId != pdu->seqId) // Check for sequence mismatch
         return 1;
@@ -368,19 +377,23 @@ int CanIsoTp::receive_ConsecutiveFrame(pdu_t *pdu, CanFrame *frame)
 
     if (pdu->len == 0) // All data received
     {
+        log_i("All data received");
         pdu->cantpState = IsoTpState::CANTP_IDLE;
         return 0;
     }
+    log_i("Data left: %d", pdu->len);
     return 1;
 }
 
 int CanIsoTp::receive_FlowControlFrame(pdu_t *pdu, CanFrame *frame)
 {
+    log_i("Flow Control Frame received");
     uint8_t flowStatus = frame->data[0] & 0x0F;
     if (flowStatus == CANTP_FLOWSTATUS_CTS)
     {
         pdu->blockSize = frame->data[1];
         pdu->separationTimeMin = frame->data[2];
+        log_i("CTS received, BS: %d, STmin: %d", pdu->blockSize, pdu->separationTimeMin);
         return 0;
     }
     return 1;

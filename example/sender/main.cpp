@@ -12,6 +12,18 @@ uint8_t pinRX = GPIO_NUM_12;
 
 typedef struct {
     uint32_t counter;
+    uint32_t counter1;
+    uint32_t counter2;
+    uint32_t counter3;
+    uint32_t counter4;
+    uint32_t counter5;
+    uint32_t counter6;
+    uint32_t counter7;
+    uint32_t counter8;
+    uint32_t counter9;
+    uint32_t counter10;
+    uint32_t counter11;
+
 } MessageData;
 
 CanIsoTp isoTpSender;

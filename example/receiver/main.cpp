@@ -10,6 +10,17 @@ uint8_t pinRX = GPIO_NUM_12;
 #endif
 typedef struct {
     uint32_t counter;
+    uint32_t counter1;
+    uint32_t counter2;
+    uint32_t counter3;
+    uint32_t counter4;
+    uint32_t counter5;
+    uint32_t counter6;
+    uint32_t counter7;
+    uint32_t counter8;
+    uint32_t counter9;
+    uint32_t counter10;
+    uint32_t counter11;
 } MessageData;
 
 CanIsoTp isoTpReceiver;
@@ -28,7 +39,7 @@ void setup() {
     rxPdu.txId = 0x456;
     rxPdu.data = (uint8_t*)&rxData;
     rxPdu.len = sizeof(rxData);
-    rxPdu.cantpState = CANTP_IDLE;
+    rxPdu.cantpState = CANTP_IDLE;  // Start in idle state
     rxPdu.blockSize = 0;
     rxPdu.separationTimeMin = 0;
 
@@ -47,7 +58,7 @@ void setup() {
 void loop() {
     // Try to receive incoming data
     int result = isoTpReceiver.receive(&rxPdu);
-    if (result == 0 && rxPdu.cantpState == CANTP_IDLE) {
+    if (result == 0 && rxPdu.cantpState == CANTP_END) {
         Serial.print("Receiver: Received counter = ");
         Serial.println(rxData.counter);
 

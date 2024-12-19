@@ -38,7 +38,7 @@ enum IsoTpState {
     CANTP_ERROR
 };
 
-// ISO-TP PDU Structure
+// ISO-TP PDU Structure (PDU = Protocol Data Unit)
 typedef struct {
     uint32_t txId;        /**< Transmit CAN ID */
     uint32_t rxId;        /**< Receive CAN ID */
