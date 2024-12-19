@@ -35,7 +35,7 @@ CanIsoTp::CanIsoTp() {
 CanIsoTp::~CanIsoTp() {
 }
 bool CanIsoTp::begin(long baudRate, int8_t txPin, int8_t rxPin){
-    ESP32CanTwai.setSpeed(TwaiSpeed::TWAI_SPEED_500KBPS);
+    ESP32CanTwai.setSpeed(ESP32Can.convertSpeed(baudRate));
     ESP32CanTwai.setPins(txPin, rxPin);
     return ESP32CanTwai.begin();
 }
@@ -223,6 +223,7 @@ int CanIsoTp::receive(pdu_t *rxpdu)
 
     while (rxpdu->cantpState != CANTP_END && rxpdu->cantpState != CANTP_ERROR)
     {
+        log_i("State in receive: %d", rxpdu->cantpState);
         if (millis() - _timerSession >= TIMEOUT_SESSION)
         {
             return 1; // Session timeout
@@ -231,12 +232,15 @@ int CanIsoTp::receive(pdu_t *rxpdu)
         CanFrame frame;
         if (ESP32CanTwai.readFrame(&frame))
         {
+            log_i("Frame id received: %d, receive id: %d", frame.identifier, rxpdu->rxId);
             if (frame.identifier == rxpdu->rxId)
             {
+                log_i("Data length: %d", frame.data_length_code);
                 // Extract N_PCItype
                 if (frame.data_length_code > 0)
                 {
                     N_PCItype = (frame.data[0] & 0xF0);
+                    log_i("N_PCItype: %d", N_PCItype);
                     switch (N_PCItype)
                     {
                     case N_PCItypeSF:
@@ -258,7 +262,12 @@ int CanIsoTp::receive(pdu_t *rxpdu)
                 }
             }
         }
+        else
+        {
+            log_i("No frame received");
+        }
     }
+    log_i("Return: %d", ret);
     return ret;
 }
 
@@ -328,9 +337,11 @@ int CanIsoTp::send_FlowControlFrame(pdu_t *pdu)
 
 int CanIsoTp::receive_SingleFrame(pdu_t *pdu, CanFrame *frame)
 {
+    log_i("Single Frame received");
     pdu->len = frame->data[0] & 0x0F; // Extract data length
     memcpy(pdu->data, &frame->data[1], pdu->len);
-    pdu->cantpState = IsoTpState::CANTP_IDLE; // Transmission complete
+    log_i("Data copied, %d bytes", pdu->len);
+    pdu->cantpState = IsoTpState::CANTP_END; // Transmission complete
     return 0;
 }
 
