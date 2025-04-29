@@ -57,7 +57,7 @@ int CanIsoTp::send(pdu_t *pdu)
     pdu->cantpState = CANTP_SEND;
     while (pdu->cantpState != CANTP_IDLE && pdu->cantpState != CANTP_ERROR)
     {
-        log_i("State: %d", pdu->cantpState);
+        // log_i("State: %d", pdu->cantpState);
         bs = false;
         switch (pdu->cantpState)
         {
@@ -225,7 +225,7 @@ int CanIsoTp::receive(pdu_t *rxpdu)
 
     while (rxpdu->cantpState != CANTP_END && rxpdu->cantpState != CANTP_ERROR)
     {
-        log_i("State in receive: %d", rxpdu->cantpState);
+        // log_i("State in receive: %d", rxpdu->cantpState);
         if (millis() - _timerSession >= TIMEOUT_SESSION)
         {
             return 1; // Session timeout
@@ -266,7 +266,7 @@ int CanIsoTp::receive(pdu_t *rxpdu)
         }
         else
         {
-            log_i("No frame received");
+            // log_i("No frame received");
         }
     }
     log_i("Return: %d", ret);
@@ -319,9 +319,9 @@ int CanIsoTp::send_ConsecutiveFrame(pdu_t *pdu)
     uint8_t sizeToSend = (pdu->len > 7) ? 7 : pdu->len;
 
     memcpy(&frame.data[1], pdu->data, sizeToSend);
-    pdu->data += sizeToSend;
-    pdu->len -= sizeToSend;
-    pdu->seqId = (pdu->seqId + 1) % 16; // Sequence number wraps after 15
+    // pdu->data += sizeToSend;
+    // pdu->len -= sizeToSend;
+    // pdu->seqId = (pdu->seqId + 1) % 16; // Sequence number wraps after 15
 
     return ESP32CanTwai.writeFrame(&frame) ? 0 : 1;
 }
@@ -367,7 +367,10 @@ int CanIsoTp::receive_ConsecutiveFrame(pdu_t *pdu, CanFrame *frame)
     log_i("Consecutive Frame received");
     uint8_t seqId = frame->data[0] & 0x0F;
     if (seqId != pdu->seqId) // Check for sequence mismatch
+    {
+        log_i("Sequence ID mismatch: expected %d, received %d", pdu->seqId, seqId);
         return 1;
+    }
 
     uint8_t sizeToCopy = (pdu->len > 7) ? 7 : pdu->len;
     memcpy(pdu->data + 6 + (pdu->seqId - 1) * 7, &frame->data[1], sizeToCopy);
