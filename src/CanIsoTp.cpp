@@ -265,6 +265,25 @@ int CanIsoTp::receive(pdu_t *rxpdu)
                     }
                 }
             }
+            else if (frame.identifier == 0) {
+                // broadcast message
+                log_i("Broadcast message received");
+                // Handle broadcast message
+                if (frame.data_length_code > 0)
+                {
+                    N_PCItype = (frame.data[0] & 0xF0);
+                    log_i("N_PCItype: %d", N_PCItype);
+                    switch (N_PCItype)
+                    {
+                    case N_PCItypeSF:
+                        ret = receive_SingleFrame(rxpdu, &frame);
+                        break;
+                    default:
+                        // Unrecognized PCI, do nothing or set error
+                        break;
+                    }
+                }
+            }
         }
         else
         {
