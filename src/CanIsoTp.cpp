@@ -28,6 +28,7 @@ typedef struct {
 } pdu_t;
 */
 
+#define log_i
 
 // constructor
 CanIsoTp::CanIsoTp() {
@@ -320,12 +321,16 @@ int CanIsoTp::send_FirstFrame(pdu_t *pdu)
 
     frame.data[0] = N_PCItypeFF | ((pdu->len >> 8) & 0x0F); // PCI: First Frame (upper nibble is DL)
     frame.data[1] = pdu->len & 0xFF;                       // Lower byte of data length
-    memcpy(&frame.data[2], pdu->data, 6);                  // Copy first 6 bytes of data
+    frame.data[2] = (pdu->rxId >> 8) & 0xFF;              // Third byte of rxId
+    frame.data[3] = pdu->rxId & 0xFF;                     // Lower byte of rxId
+    log_i("RxId: %d", pdu->rxId);
+
+    memcpy(&frame.data[4], pdu->data, 4);                  // Copy first 4 bytes of data
 
     log_i("Data length: %d", pdu->len);
 
-    pdu->data += 6;  // Advance data pointer
-    pdu->len -= 6;   // Remaining data size
+    pdu->data += 4;  // Advance data pointer
+    pdu->len -= 4;   // Remaining data size
     pdu->seqId = 1;  // Sequence ID for consecutive frames
 
     return ESP32CanTwai.writeFrame(&frame) ? 0 : 1;
@@ -364,6 +369,8 @@ int CanIsoTp::send_FlowControlFrame(pdu_t *pdu)
     frame.extd = 0;
     frame.data_length_code = 3;
 
+    log_i("ID: %d", pdu->txId);
+
     frame.data[0] = N_PCItypeFC | CANTP_FLOWSTATUS_CTS; // PCI: Flow Control + CTS
     frame.data[1] = pdu->blockSize;                    // Block Size
     frame.data[2] = pdu->separationTimeMin;            // Separation Time
@@ -385,13 +392,15 @@ int CanIsoTp::receive_FirstFrame(pdu_t *pdu, CanFrame *frame)
 {
     log_i("First Frame received");
     pdu->len = ((frame->data[0] & 0x0F) << 8) | frame->data[1]; // Extract total data length
-    memcpy(pdu->data, &frame->data[2], 6);                     // Copy first 6 bytes
+    pdu->txId = ((frame->data[2] << 8) | frame->data[3]);       // Extract txId
+    log_i("TxId: %d", pdu->txId);
+    memcpy(pdu->data, &frame->data[4], 4);                     // Copy first 4 bytes
     pdu->seqId = 1;                                            // Start sequence ID
     pdu->cantpState = IsoTpState::CANTP_WAIT_FC;                 // Awaiting consecutive frames
     log_i("Sending FC");
     log_i("Data length: %d", pdu->len);
-    pdu->len -= 6; // Remaining data length
-    pdu->data += 6; // Advance data pointer
+    pdu->len -= 4; // Remaining data length
+    pdu->data += 4; // Advance data pointer
     return send_FlowControlFrame(pdu);
 }
 
